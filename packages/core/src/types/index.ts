@@ -45,12 +45,10 @@ export type Chain = {
 
 export type ChainProviderFn<
   TProvider extends Provider = providers.BaseProvider,
-  TWebSocketProvider extends WebSocketProvider = providers.WebSocketProvider,
   TChain extends Chain = Chain
 > = (chain: TChain) => {
   chain: TChain;
   provider: () => ProviderWithFallbackConfig<TProvider>;
-  webSocketProvider?: () => TWebSocketProvider;
 } | null;
 
 export type FallbackProviderConfig = Omit<
@@ -61,9 +59,6 @@ export type ProviderWithFallbackConfig<TProvider extends Provider = Provider> =
   TProvider & FallbackProviderConfig;
 
 export type Provider = providers.BaseProvider & { chains?: Chain[] };
-export type WebSocketProvider = providers.WebSocketProvider & {
-  chains?: Chain[];
-};
 
 export type Signer = BaseSigner;
 

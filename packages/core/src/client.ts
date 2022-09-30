@@ -3,12 +3,9 @@ import { Mutate, StoreApi, default as create } from "zustand/vanilla";
 
 import { Connector, ConnectorData, InjectedConnector } from "./connectors";
 import { ClientStorage, createStorage, noopStorage } from "./storage";
-import { Provider, WebSocketProvider } from "./types";
+import { Provider } from "./types";
 
-export type ClientConfig<
-  TProvider extends Provider = Provider,
-  TWebSocketProvider extends WebSocketProvider = WebSocketProvider
-> = {
+export type ClientConfig<TProvider extends Provider = Provider> = {
   /** Enables reconnecting to last used connector on init */
   autoConnect?: boolean;
   /**
@@ -27,17 +24,10 @@ export type ClientConfig<
    * @default window.localStorage
    */
   storage?: ClientStorage;
-  /** WebSocket interface for connecting to network */
-  webSocketProvider?:
-    | ((config: { chainId?: number }) => TWebSocketProvider | undefined)
-    | TWebSocketProvider;
 };
 
 export type Data<TProvider extends Provider> = ConnectorData<TProvider>;
-export type State<
-  TProvider extends Provider = Provider,
-  TWebSocketProvider extends WebSocketProvider = WebSocketProvider
-> = {
+export type State<TProvider extends Provider = Provider> = {
   chains?: Connector["chains"];
   connector?: Connector;
   connectors: Connector[];
@@ -45,22 +35,18 @@ export type State<
   error?: Error;
   provider: TProvider;
   status: "connected" | "connecting" | "reconnecting" | "disconnected";
-  webSocketProvider?: TWebSocketProvider;
 };
 
 const storeKey = "store";
 
-export class Client<
-  TProvider extends Provider = Provider,
-  TWebSocketProvider extends WebSocketProvider = WebSocketProvider
-> {
-  config: Partial<ClientConfig<TProvider, TWebSocketProvider>>;
+export class Client<TProvider extends Provider = Provider> {
+  config: Partial<ClientConfig<TProvider>>;
   storage: ClientStorage;
   store: Mutate<
-    StoreApi<State<TProvider, TWebSocketProvider>>,
+    StoreApi<State<TProvider>>,
     [
       ["zustand/subscribeWithSelector", never],
-      ["zustand/persist", Partial<State<TProvider, TWebSocketProvider>>]
+      ["zustand/persist", Partial<State<TProvider>>]
     ]
   >;
 
@@ -78,8 +64,7 @@ export class Client<
     logger = {
       warn: console.warn,
     },
-    webSocketProvider,
-  }: ClientConfig<TProvider, TWebSocketProvider>) {
+  }: ClientConfig<TProvider>) {
     // Check status for autoConnect flag
     let status: State["status"] = "disconnected";
     let chainId: number | undefined;
@@ -97,16 +82,16 @@ export class Client<
 
     // Create store
     this.store = create<
-      State<TProvider, TWebSocketProvider>,
+      State<TProvider>,
       [
         ["zustand/subscribeWithSelector", never],
-        ["zustand/persist", Partial<State<TProvider, TWebSocketProvider>>]
+        ["zustand/persist", Partial<State<TProvider>>]
       ]
     >(
       subscribeWithSelector(
         persist(
           () =>
-            <State<TProvider, TWebSocketProvider>>{
+            <State<TProvider>>{
               connectors:
                 typeof connectors === "function" ? connectors() : connectors,
               provider:
@@ -114,10 +99,6 @@ export class Client<
                   ? provider({ chainId })
                   : provider,
               status,
-              webSocketProvider:
-                typeof webSocketProvider === "function"
-                  ? webSocketProvider({ chainId })
-                  : webSocketProvider,
             },
           {
             name: storeKey,
@@ -143,7 +124,6 @@ export class Client<
       logger,
       provider,
       storage,
-      webSocketProvider,
     };
     this.storage = storage;
     this.#lastUsedConnector = storage?.getItem("wallet");
@@ -180,16 +160,9 @@ export class Client<
   get subscribe() {
     return this.store.subscribe;
   }
-  get webSocketProvider() {
-    return this.store.getState().webSocketProvider;
-  }
 
   setState(
-    updater:
-      | State<TProvider, TWebSocketProvider>
-      | ((
-          state: State<TProvider, TWebSocketProvider>
-        ) => State<TProvider, TWebSocketProvider>)
+    updater: State<TProvider> | ((state: State<TProvider>) => State<TProvider>)
   ) {
     const newState =
       typeof updater === "function" ? updater(this.store.getState()) : updater;
@@ -292,45 +265,37 @@ export class Client<
       }
     );
 
-    const { provider, webSocketProvider } = this.config;
+    const { provider } = this.config;
     const subscribeProvider = typeof provider === "function";
-    const subscribeWebSocketProvider = typeof webSocketProvider === "function";
 
-    if (subscribeProvider || subscribeWebSocketProvider)
+    if (subscribeProvider)
       this.store.subscribe(
         ({ data }) => data?.chain?.id,
         (chainId) => {
           this.setState((x) => ({
             ...x,
             provider: subscribeProvider ? provider({ chainId }) : x.provider,
-            webSocketProvider: subscribeWebSocketProvider
-              ? webSocketProvider({ chainId })
-              : x.webSocketProvider,
           }));
         }
       );
   }
 }
 
-export let client: Client<Provider, WebSocketProvider>;
+export let client: Client<Provider>;
 
-export function createClient<
-  TProvider extends Provider = Provider,
-  TWebSocketProvider extends WebSocketProvider = WebSocketProvider
->(config: ClientConfig<TProvider, TWebSocketProvider>) {
-  const client_ = new Client<TProvider, TWebSocketProvider>(config);
-  client = client_ as unknown as Client<Provider, WebSocketProvider>;
+export function createClient<TProvider extends Provider = Provider>(
+  config: ClientConfig<TProvider>
+) {
+  const client_ = new Client<TProvider>(config);
+  client = client_ as unknown as Client<Provider>;
   return client_;
 }
 
-export function getClient<
-  TProvider extends Provider = Provider,
-  TWebSocketProvider extends WebSocketProvider = WebSocketProvider
->() {
+export function getClient<TProvider extends Provider = Provider>() {
   if (!client) {
     throw new Error(
       "No wagmi client found. Ensure you have set up a client: https://wagmi.sh/docs/client"
     );
   }
-  return client as unknown as Client<TProvider, TWebSocketProvider>;
+  return client as unknown as Client<TProvider>;
 }
