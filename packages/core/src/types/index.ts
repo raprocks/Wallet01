@@ -28,6 +28,9 @@ export type Chain = {
   //   default: BlockExplorer;
   // };
   /** ENS registry */
+  did: {
+    [key: string]: string;
+  };
   ens?: {
     address: string;
   };
